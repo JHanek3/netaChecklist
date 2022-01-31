@@ -52,7 +52,7 @@ class postRequest:
                 
                 # Person's Name
                 elif item["position"] == 3:
-                    data["response"] = self.qaqc.replace(" ", "_")
+                    data["response"] = self.qaqc
                 
                 # EEE, Company Name
                 elif item["position"] == 4:
@@ -89,7 +89,7 @@ class postRequest:
                 }
         }
         data["checklists"] = data["checklists"].replace("\n", "")
-        data["checklists"] = data["checklists"].replace(" ", "")
+        # data["checklists"] = data["checklists"].replace(" ", "")
 
         # Formats name
         currentFormat = self.checklist["name"].replace(" ", "")
@@ -111,7 +111,7 @@ class postRequest:
         else:
             today = date.today()
             file = open(f"{today} Failed Imports.txt", "a")
-            file.write(f"{self.name}\n")
+            file.write(f"Failed to import: {self.name}\n")
             file.close()
             return f"Error: {self.name}"
     
