@@ -8,6 +8,8 @@ import pandas as pd
 from postRequest import postRequest
 from datetime import date
 import time
+from hiddenHook import * 
+
 
 def main():
     # Create the entire GUI program
@@ -40,7 +42,7 @@ class Program:
         self.setUpLabels()
 
     def verifyTicket(self):
-        self.ticket = bim.bimLogin(os.getenv("BIM_USERNAME"), os.getenv("BIM_PASSWORD"))
+        self.ticket = bim.bimLogin(getUsername(), getPassword())
         self.projects = bim.getProjectID(self.ticket)
 
         if self.ticket and self.projects:
@@ -61,7 +63,7 @@ class Program:
                 messagebox.showerror("Checklist Template", "Error in Checklist Template Retrieval\nClosing App...")
                 self.window.destroy()
             
-            self.checklistData = checklist[os.getenv("CHECKLIST_NAME")]
+            self.checklistData = checklist[getChecklistName()]
             self.browseButton.configure(state="normal")
 
         menu = StringVar(self.window)
@@ -96,8 +98,17 @@ class Program:
             else:
                 workbook = pd.read_excel(open(osFile, 'rb'), index_col=[0])
                 dataColumns = list(workbook.columns)
+
+                # Checks to make sure there are no duplicates
+                areThereDuplicates = excel.checkDuplicates(workbook)
+
+                # Checks if columns are formatted correctly
                 if dataColumns != ['B3F ID', 'Name', 'Inspection Date', 'QAQC Authority', 'Inspection Attendees']:
                     messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees")
+                
+                elif areThereDuplicates[0] == True:
+                    messagebox.showerror("Duplicated Detected", areThereDuplicates[1])
+
                 else:
                     prettyPrint = str(osFile)
                     self.filePathActual = prettyPrint

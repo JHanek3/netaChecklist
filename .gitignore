@@ -10,7 +10,7 @@ tests/testDKL1.xlsx
 tests/testDKL2.xlsx
 tests/testLoadBanks.xlsx
 .env
-hook.py
+hiddenHook.py
 app.spec
 index.py
 old.py

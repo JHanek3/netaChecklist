@@ -2,6 +2,7 @@ import logging
 import datetime
 import os
 import requests
+from hiddenHook import *
 
 today = datetime.date.today()
 today = today.strftime("%m/%d/%y").replace("/", "-")
@@ -55,14 +56,14 @@ def getChecklistTemplateIDName(ticket, projectID):
             "application_version": "4.0"
         }
 
-        if projectID == os.getenv("LOAD_BANKS"):
-            data["ids"] = os.getenv("LOAD_BANKS_TEMPLATE")
+        if projectID == getLoadBanks():
+            data["ids"] = getLoadBanksTemplate()
             
-        elif projectID == os.getenv("DKL1"):
-            data["ids"] = os.getenv("DKL1_TEMPLATE")
+        elif projectID == getDKL1():
+            data["ids"] = getDKL1Template()
         
-        elif projectID == os.getenv("DKL2"):
-            data["ids"] = os.getenv("DKL2_TEMPLATE") 
+        elif projectID == getDKL2():
+            data["ids"] = getDKL2Template() 
 
         else:
             logging.error("Project IDs dont match up with hard coded ID's")
@@ -85,7 +86,7 @@ def getCompanyIDName(ticket, projectID):
         data = {"ticket": ticket, "project_id": projectID}
         response = requests.post(url, data=data).json()
         for x in response:
-            if x["name"] == os.getenv("COMPANY_NAME"):
+            if x["name"] == getCompanyName():
                 company.append(x["id"])
                 company.append(x["name"])
         if len(company) == 0:
