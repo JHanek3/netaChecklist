@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 
 # Get the IDS to filter for out request call
 def getIDs(workbook):
@@ -27,3 +28,22 @@ def checkDuplicates(dataFrame):
         return True, finalString
     else:
         return False, finalString
+
+#TODO: Error handles return individual rows where the error occured
+#TODO: Make sure all files are pdfs
+def verifyFilePath(dataFrame):
+    filesPass = False
+    # Error Handeling if a file path is blank
+    if dataFrame.isnull().values.any():
+        filesPass = "Empty"
+        return filesPass
+    
+    for file in dataFrame["File Path"]:
+        formattedFile = os.path.abspath(file)
+        if not os.path.isfile(formattedFile):
+            filesPass = "Invalid"
+            return filesPass
+    
+    # Probably unnecessary with how I handle the error processing
+    filesPass = True
+    return filesPass

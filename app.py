@@ -10,7 +10,7 @@ from datetime import date
 import time
 from hiddenHook import * 
 
-
+# pyinstaller --noconsole --onefile --additional-hooks-dir=hiddenHook.py app.py 
 def main():
     # Create the entire GUI program
     program = Program()
@@ -34,7 +34,11 @@ class Program:
 
         self.filePath = None
         self.filePathActual = ""
+        self.MovePDFs = None
+        self.folderPathActual = ""
+        
         self.browseButton = None
+        self.movePDFButton = None
         self.submitButton = None
         
         self.verifyTicket()
@@ -51,7 +55,6 @@ class Program:
             messagebox.showerror("Authentication", "Login Failed")
             self.window.destroy()
     
-
     def setUpDropdowns(self):
         def callback(*args):
             for x in self.projects.keys():
@@ -76,12 +79,20 @@ class Program:
     def setUpLabels(self):
         # Create the Button
         self.browseButton = ttk.Button(self.window, text="Browse", state="disabled")
-        self.browseButton.pack(pady=20)
+        self.browseButton.pack(pady=5)
         self.browseButton['command'] = self.openFile
 
-        # Create the label to be altered
+        # Create the label to be altered for File Name
         self.filePath = ttk.Label(self.window, text="File: __________", font=('Georgia 13'))
         self.filePath.pack(pady=5)
+
+        self.movePDFButton = ttk.Button(self.window, text="Browse", state="disabled")
+        self.movePDFButton.pack(pady=5)
+        self.movePDFButton['command'] = self.getFolder
+
+        # Create the label to be altered for movePDFS
+        self.MovePDFs = ttk.Label(self.window, text="Folder: ________", font=('Georgia 13'))
+        self.MovePDFs.pack(pady=5)
 
         # Create the submit button
         self.submitButton = ttk.Button(self.window, text="Submit", state="disabled", command= lambda: self.submit())
@@ -89,7 +100,6 @@ class Program:
 
     # Gets the Excel File Window Path
     def openFile(self):
-
         file = filedialog.askopenfile(mode='r')
         if file:
             osFile = os.path.abspath(file.name)
@@ -102,20 +112,38 @@ class Program:
                 # Checks to make sure there are no duplicates
                 areThereDuplicates = excel.checkDuplicates(workbook)
 
+                # Checks to make sure all file paths are valid
+                validFilePaths = excel.verifyFilePath(workbook)
+
                 # Checks if columns are formatted correctly
-                if dataColumns != ['B3F ID', 'Name', 'Inspection Date', 'QAQC Authority', 'Inspection Attendees']:
-                    messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees")
+                if dataColumns != ['B3F ID', 'Name', 'Inspection Date', 'QAQC Authority', 'Inspection Attendees', 'File Path']:
+                    messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees, File Path")
                 
                 elif areThereDuplicates[0] == True:
                     messagebox.showerror("Duplicated Detected", areThereDuplicates[1])
 
+                elif validFilePaths == "Empty":
+                    messagebox.showerror("Error in File Paths", "Empty File Path")
+
+                elif validFilePaths == "Invalid":
+                    messagebox.showerror("Error in File Paths", "A File Path is not a valid file")
+
                 else:
                     prettyPrint = str(osFile)
                     self.filePathActual = prettyPrint
-                    print(self.filePathActual)
                     self.filePath["text"] = "File: " + prettyPrint.split("\\")[-1]
-                    self.submitButton["state"] = "enable"
+                    self.movePDFButton["state"] = "enable"
+                    self.browseButton["state"] = "disable"
 
+    def getFolder(self):
+        folder = filedialog.askdirectory()
+        prettyPrint = str(folder)
+
+        self.folderPathActual = prettyPrint
+        self.MovePDFs["text"] = "Folder: " + prettyPrint.split("/")[-1]
+        
+        self.submitButton["state"] = "enable"
+    
     def finishClose(self, msg, bar):
         today = date.today()
         if os.path.exists(f"{today} Failed Imports.txt"):
@@ -157,21 +185,28 @@ class Program:
         
         
         postProgressBar = 80 / len(workbook["B3F ID"])
-        for id, name, date, qaqc, inspec in zip(workbook["B3F ID"], workbook["Name"], workbook["Inspection Date"], workbook["QAQC Authority"], workbook["Inspection Attendees"]):
+        for id, name, date, qaqc, inspec, path in zip(workbook["B3F ID"], workbook["Name"], workbook["Inspection Date"], 
+                workbook["QAQC Authority"], workbook["Inspection Attendees"], workbook["File Path"]):
+            
             areaID = bim.getEquipmentLocation(self.ticket, self.projectID, id)
             if areaID == None:
                 messagebox.showerror("Area ID", "Failed to retrieve Area ID, might be a faulty Equipment ID.\nClosing App...")
                 self.window.destroy()
                 break
             
-            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, "", company, areaID, date, qaqc, inspec)
+            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, "", company, areaID, date, qaqc, inspec, path)
             newPost.formatPost()
+            newPost.formatAttachment()
             post = newPost.post()
+            newPost.postAttachment()
+
+            # Moves the pdf to desired folder
+            newPost.movePDF(path, self.folderPathActual)
 
             progressMsg["text"] = f"{post}"
             progress["value"] += postProgressBar
             self.window.update_idletasks()
-            # LOL
+            #LOL
             time.sleep(1)
         
         self.finishClose(progressMsg, progress)
