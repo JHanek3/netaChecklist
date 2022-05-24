@@ -34,7 +34,7 @@ def checkDuplicates(dataFrame):
 def verifyFilePath(dataFrame):
     filesPass = False
     # Error Handeling if a file path is blank
-    if dataFrame.isnull().values.any():
+    if dataFrame["File Path"].isnull().values.any():
         filesPass = "Empty"
         return filesPass
     

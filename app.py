@@ -9,21 +9,22 @@ from postRequest import postRequest
 from datetime import date
 import time
 from hiddenHook import * 
+import sys
+import json
 
-# pyinstaller --noconsole --onefile --additional-hooks-dir=hiddenHook.py app.py 
+# pyinstaller --noconsole --onefile --additional-hooks-dir=hiddenHook.py app.py
 def main():
     # Create the entire GUI program
     program = Program()
 
     # Start the GUI event loop
     program.window.mainloop()
-
 class Program:
     def __init__(self):
         # Create the window
         self.window = Tk()
         self.window.title("Checklist Automatic-O")
-        self.window.geometry("700x350")
+        self.window.geometry("700x600")
         self.window.withdraw()
         
         self.ticket = None
@@ -36,9 +37,11 @@ class Program:
         self.filePathActual = ""
         self.MovePDFs = None
         self.folderPathActual = ""
+        self.checkboxValue = None
         
         self.browseButton = None
         self.movePDFButton = None
+        self.checkboxButton = None
         self.submitButton = None
         
         self.verifyTicket()
@@ -79,24 +82,36 @@ class Program:
     def setUpLabels(self):
         # Create the Button
         self.browseButton = ttk.Button(self.window, text="Browse", state="disabled")
-        self.browseButton.pack(pady=5)
+        self.browseButton.pack(pady=2.5)
         self.browseButton['command'] = self.openFile
 
         # Create the label to be altered for File Name
         self.filePath = ttk.Label(self.window, text="File: __________", font=('Georgia 13'))
-        self.filePath.pack(pady=5)
+        self.filePath.pack(pady=2.5)
 
         self.movePDFButton = ttk.Button(self.window, text="Browse", state="disabled")
-        self.movePDFButton.pack(pady=5)
+        self.movePDFButton.pack(pady=2.5)
         self.movePDFButton['command'] = self.getFolder
 
         # Create the label to be altered for movePDFS
         self.MovePDFs = ttk.Label(self.window, text="Folder: ________", font=('Georgia 13'))
-        self.MovePDFs.pack(pady=5)
+        self.MovePDFs.pack(pady=2.5)
 
+        # Create the checkmark for user to click whether or not they want Submitted value added to the Equipment
+        self.checkboxValue = IntVar()
+        self.checkboxButton = ttk.Checkbutton(self.window, text="Add Submitted Field?", variable=self.checkboxValue, onvalue=1, offvalue=0)
+        self.checkboxButton.pack(pady=2.5)
+        
         # Create the submit button
+        """
+        Added multithreading, but then the attachment started acting weird
         self.submitButton = ttk.Button(self.window, text="Submit", state="disabled", command= lambda: self.submit())
-        self.submitButton.pack(pady=10)
+        t1 = threading.Thread(target=self.submit)
+        t1.daemon = True
+        self.submitButton = ttk.Button(self.window, text="Submit", state="disabled", command=t1.start)
+        """
+        self.submitButton = ttk.Button(self.window, text="Submit", state="disabled", command= lambda: self.submit())
+        self.submitButton.pack(pady=5)
 
     # Gets the Excel File Window Path
     def openFile(self):
@@ -116,7 +131,7 @@ class Program:
                 validFilePaths = excel.verifyFilePath(workbook)
 
                 # Checks if columns are formatted correctly
-                if dataColumns != ['B3F ID', 'Name', 'Inspection Date', 'QAQC Authority', 'Inspection Attendees', 'File Path']:
+                if dataColumns != ['B3F ID', 'Name', "Description", 'Inspection Date', 'QAQC Authority', 'Inspection Attendees', 'File Path']:
                     messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees, File Path")
                 
                 elif areThereDuplicates[0] == True:
@@ -143,26 +158,137 @@ class Program:
         self.MovePDFs["text"] = "Folder: " + prettyPrint.split("/")[-1]
         
         self.submitButton["state"] = "enable"
+
+    def companyLogicAndFields(self, progress, progressMsg):
+        company = bim.getCompanyIDName(self.ticket, self.projectID)
+        if not company:
+            messagebox.showerror("Company Retrieval", "Failed to retrieve Company ID.\nClosing App...")
+            self.window.destroy()
+            return None
+
+        progress["value"] = 5
+        progressMsg["text"] = "Company ID retrieved..."
+        self.window.update()
+        time.sleep(.25)
+        
+        return company
     
-    def finishClose(self, msg, bar):
+    def customFieldsLogicAndFields(self):
+        if self.checkboxValue.get() == 1:
+            customField = bim.getCustomFields(self.ticket, self.projectID)
+            if not customField:
+                messagebox.showerror("Custom Field Retrieval", "Failed to retrieve Custom Field NETA.\nClosing App...")
+                self.window.destroy()
+                return None
+            return customField
+        else:
+            return None
+
+    # The data call is way in the beginning @ dropdown
+    def netaChecklistTemplateLogicAndFields(self, progress, progressMsg):
+        progress["value"] += 5
+        progressMsg["text"] = "NETA Checklist Field Found..."
+        self.window.update()
+        time.sleep(.25)
+    
+    def workbookLogicAndFields(self, progress, progressMsg):
+        workbook = pd.read_excel(self.filePathActual)
+        progress["value"] += 5
+        progressMsg["text"] = "Excel Data Retrieved..."
+        self.window.update()
+
+        postProgressBar = 80 / len(workbook["B3F ID"])
+
+        return workbook, postProgressBar
+
+    def postLogicAndFields(self, workbook, company, progress, progressMsg, postProgressBar):
+        
+        data = {
+            "project_id": self.projectID,
+            "ticket": self.ticket,
+            "application_version": "4.0",
+            "checklists": []
+        }
+
+        attachmentData = []
+        for id, name, description, date, qaqc, inspec, path in zip(workbook["B3F ID"], workbook["Name"], workbook["Description"], workbook["Inspection Date"], 
+                 workbook["QAQC Authority"], workbook["Inspection Attendees"], workbook["File Path"]):
+            
+            equipmentJSON = bim.getEquipment(self.ticket, self.projectID, id)
+            areaID = equipmentJSON["area_id"]
+            
+            if areaID == None:
+                messagebox.showerror("Area ID", "Failed to retrieve Area ID, might be a faulty Equipment ID.\nClosing App...")
+                self.window.destroy()
+                break
+            
+            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, description, company, areaID, date, qaqc, inspec, path)
+            checklistDataFormated = newPost.formatPost()
+
+            data["checklists"].append(checklistDataFormated)
+            attachmentData.append([newPost.getGUID(), newPost.getPath(), equipmentJSON])
+            
+        data["checklists"] = json.dumps(data["checklists"])
+        jsonData = json.dumps(data)
+        postResponse = bim.post(jsonData)
+
+        if postResponse:
+            print("Batch uploaded")
+            progressMsg["text"] = "Batch Uploaded..."
+            progress["value"] += postProgressBar
+            self.window.update()
+            time.sleep(.75)
+            return attachmentData
+        else:
+            messagebox.showerror("Error in Batch Upload", "The whole batch did not upload...")
+            return None
+
+    def attachmentLogicAndFields(self, progress, progressMsg, postProgressBar, customField, attachmentData):
+
+        if attachmentData == None:
+            return None
+        
+        progressMsg["text"] = "Working on Attachments..."
+        self.window.update()
+        
+        for attachment in attachmentData:
+            guid = attachment[0]
+            filePath = attachment[1]
+            equipmentJSON = attachment[2]
+            data = bim.formatAttachment(self.ticket, self.projectID, guid, filePath)
+
+            bim.till200(self.ticket, self.projectID, guid, data, filePath, self.folderPathActual, customField, equipmentJSON)
+        
+        progressMsg["text"] = "Attachments Uploaded..."
+        print("Attachments Uploaded")
+        progress["value"] += postProgressBar
+        self.window.update()
+
+    def closeFileLogicAndFields(self, progress, progressMsg):
         today = date.today()
         if os.path.exists(f"{today} Failed Imports.txt"):
             messagebox.showwarning("Failed Imports", f"Some Checklists failed to import.\nCheck '{today} Failed Imports.txt' for more info.")
 
         
         logout = bim.bimLogout(self.ticket)
+        
         # Not really a problem
         if not logout:
             messagebox.showerror("Logging Out", "Failed to Logout.\nClosing App...")
             self.window.destroy()
-        msg["text"] = "Logged Out..."
-        bar["value"] += 10
-        msg.destroy()
-        bar.destroy()
+        
+        progressMsg["text"] = "Logged Out..."
+        progress["value"] += 10
+        progressMsg.destroy()
+        progress.destroy()
+        
         messagebox.showinfo("Authentication", "Succesfully Logged Out!\nClosing App...")
         self.window.destroy()
-    
+        
+        sys.exit()
+   
     def submit(self):
+
         self.submitButton["state"] = "disabled"
         progress = ttk.Progressbar(self.window, orient = HORIZONTAL, length = 200, mode = "determinate")
         progress.pack(pady = 5)
@@ -170,47 +296,19 @@ class Program:
         progressMsg = ttk.Label(self.window, text="Reading File...", font=('Georgia 7'))
         progressMsg.pack(pady = 5)
         
-        company = bim.getCompanyIDName(self.ticket, self.projectID)
-        if not company:
-            messagebox.showerror("Company Retrieval", "Failed to retrieve Company ID.\nClosing App...")
-            self.window.destroy()
-            
-        progress["value"] = 5
-        progressMsg["text"] = "Company ID retrieved..."
-        self.window.update_idletasks()
-        
-        workbook = pd.read_excel(self.filePathActual)
-        progress["value"] += 5
-        progressMsg["text"] = "Opening File..."
-        
-        
-        postProgressBar = 80 / len(workbook["B3F ID"])
-        for id, name, date, qaqc, inspec, path in zip(workbook["B3F ID"], workbook["Name"], workbook["Inspection Date"], 
-                workbook["QAQC Authority"], workbook["Inspection Attendees"], workbook["File Path"]):
-            
-            areaID = bim.getEquipmentLocation(self.ticket, self.projectID, id)
-            if areaID == None:
-                messagebox.showerror("Area ID", "Failed to retrieve Area ID, might be a faulty Equipment ID.\nClosing App...")
-                self.window.destroy()
-                break
-            
-            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, "", company, areaID, date, qaqc, inspec, path)
-            newPost.formatPost()
-            newPost.formatAttachment()
-            post = newPost.post()
-            newPost.postAttachment()
+        company = self.companyLogicAndFields(progress, progressMsg)
 
-            # Moves the pdf to desired folder
-            newPost.movePDF(path, self.folderPathActual)
+        customField = self.customFieldsLogicAndFields()
+        
+        self.netaChecklistTemplateLogicAndFields(progress, progressMsg)
 
-            progressMsg["text"] = f"{post}"
-            progress["value"] += postProgressBar
-            self.window.update_idletasks()
-            #LOL
-            time.sleep(1)
+        workbook, postProgressBar = self.workbookLogicAndFields(progress, progressMsg)
+
+        attachmentGuids = self.postLogicAndFields(workbook, company, progress, progressMsg, postProgressBar)
+
+        self.attachmentLogicAndFields(progress, progressMsg, postProgressBar, customField, attachmentGuids)
         
-        self.finishClose(progressMsg, progress)
-        
+        self.closeFileLogicAndFields(progress, progressMsg)
 
 if __name__ == "__main__":
     main()
