@@ -336,13 +336,28 @@ def postSubmittedValue(ticket, projectID, jResObj, id, submitStr):
             return True
         else:
             return None
+    
+def submittedLogic(ticket, projectID, customField, equipment):
+    today = str(date.today()).split(" ")[0]
+    file = open(f"{today} Submit Fields.txt", "a")
+    name = equipment['name']
 
-# TODO: UNCOMMENT MOVE PDF
+    if customField != None:
+            submitResponse = postSubmittedValue(ticket, projectID, equipment, customField[0], customField[1])
+            if submitResponse != None:
+                file.write(f"{name}: Changed to 'Submitted'\n")
+                return True
+            else:
+                print("Failed to update Submitted field")
+                file.write(f"{name}: Still '{customField[1]}'\n")
+    file.close()            
+
 def till200(ticket, projectID, guid, data, filePath, folderPathActual, customField, equipmentJSON):
     count = 0
     while count != 3:
         checklistExistsReponse = checkIfChecklistExists(ticket, projectID, guid)
         if checklistExistsReponse.status_code == 200:
+            count = 3
             break
         else:
             time.sleep(.25)

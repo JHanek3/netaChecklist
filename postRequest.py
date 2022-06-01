@@ -1,6 +1,6 @@
 import uuid
 class postRequest:
-    def __init__(self, ticket, projectID, checklist, id, name, description, company, location, date, qaqc, inspec, path):
+    def __init__(self, ticket, projectID, checklist, id, name, description, company, location, date, qaqc, inspec):
         self.ticket = ticket
         self.projectID = projectID
         self.checklist = checklist
@@ -12,7 +12,7 @@ class postRequest:
         self.date = date
         self.qaqc = qaqc
         self.inspec = inspec
-        self.path = path
+        # self.path = path
         self.GUID = self.checklistGUID()
         self.data = None
     
@@ -112,8 +112,9 @@ class postRequest:
     def getGUID(self):
         return self.GUID
     
-    def getPath(self):
-        return self.path
+    # def getPath(self):
+    #     return self.path
+    
     def __str__(self):
         return f"""Ticket: {self.ticket}\nProject ID: {self.projectID} ID: {self.id}\nEquipment Name: {self.name}\nDescription: {self.description}\nCompany: {self.company}\nStatus: "Closed"\nLocation: {self.location}\nSource: {self.id}"""
     

@@ -10,8 +10,8 @@ def formatWindow(window):
     
     # Gets the requested values of the height and width.
     # get the screen dimension
-    windowWidth = 700
-    windowHeight = 350
+    windowWidth = 400
+    windowHeight = 300
     
     screenWidth = window.winfo_screenwidth()
     screenHeight = window.winfo_screenheight()

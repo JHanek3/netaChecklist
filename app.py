@@ -24,7 +24,6 @@ class Program:
         # Create the window
         self.window = Tk()
         self.window.title("Checklist Automatic-O")
-        self.window.geometry("700x600")
         self.window.withdraw()
         
         self.ticket = None
@@ -89,13 +88,14 @@ class Program:
         self.filePath = ttk.Label(self.window, text="File: __________", font=('Georgia 13'))
         self.filePath.pack(pady=2.5)
 
-        self.movePDFButton = ttk.Button(self.window, text="Browse", state="disabled")
-        self.movePDFButton.pack(pady=2.5)
-        self.movePDFButton['command'] = self.getFolder
+        # No longer needed since attachment logic removed
+        # self.movePDFButton = ttk.Button(self.window, text="Browse", state="disabled")
+        # self.movePDFButton.pack(pady=2.5)
+        # self.movePDFButton['command'] = self.getFolder
 
         # Create the label to be altered for movePDFS
-        self.MovePDFs = ttk.Label(self.window, text="Folder: ________", font=('Georgia 13'))
-        self.MovePDFs.pack(pady=2.5)
+        # self.MovePDFs = ttk.Label(self.window, text="Folder: ________", font=('Georgia 13'))
+        # self.MovePDFs.pack(pady=2.5)
 
         # Create the checkmark for user to click whether or not they want Submitted value added to the Equipment
         self.checkboxValue = IntVar()
@@ -128,27 +128,29 @@ class Program:
                 areThereDuplicates = excel.checkDuplicates(workbook)
 
                 # Checks to make sure all file paths are valid
-                validFilePaths = excel.verifyFilePath(workbook)
+                # validFilePaths = excel.verifyFilePath(workbook)
 
                 # Checks if columns are formatted correctly
-                if dataColumns != ['B3F ID', 'Name', "Description", 'Inspection Date', 'QAQC Authority', 'Inspection Attendees', 'File Path']:
-                    messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees, File Path")
+                # , 'File Path'
+                if dataColumns != ['B3F ID', 'Name', "Description", 'Inspection Date', 'QAQC Authority', 'Inspection Attendees']:
+                    messagebox.showerror("Improperly Formatted Header", "Desired Headers: B3F ID, Name, Inspection Date, QAQC Authority, Inspection Attendees")
                 
                 elif areThereDuplicates[0] == True:
                     messagebox.showerror("Duplicated Detected", areThereDuplicates[1])
 
-                elif validFilePaths == "Empty":
-                    messagebox.showerror("Error in File Paths", "Empty File Path")
+                # elif validFilePaths == "Empty":
+                #     messagebox.showerror("Error in File Paths", "Empty File Path")
 
-                elif validFilePaths == "Invalid":
-                    messagebox.showerror("Error in File Paths", "A File Path is not a valid file")
+                # elif validFilePaths == "Invalid":
+                #     messagebox.showerror("Error in File Paths", "A File Path is not a valid file")
 
                 else:
                     prettyPrint = str(osFile)
                     self.filePathActual = prettyPrint
                     self.filePath["text"] = "File: " + prettyPrint.split("\\")[-1]
-                    self.movePDFButton["state"] = "enable"
-                    self.browseButton["state"] = "disable"
+                    # self.movePDFButton["state"] = "enable"
+                    # self.browseButton["state"] = "disable"
+                    self.submitButton["state"] = "enable"
 
     def getFolder(self):
         folder = filedialog.askdirectory()
@@ -210,9 +212,10 @@ class Program:
             "checklists": []
         }
 
-        attachmentData = []
-        for id, name, description, date, qaqc, inspec, path in zip(workbook["B3F ID"], workbook["Name"], workbook["Description"], workbook["Inspection Date"], 
-                 workbook["QAQC Authority"], workbook["Inspection Attendees"], workbook["File Path"]):
+        equipmentData = []
+        # , workbook["File Path"]
+        for id, name, description, date, qaqc, inspec in zip(workbook["B3F ID"], workbook["Name"], workbook["Description"], workbook["Inspection Date"], 
+                 workbook["QAQC Authority"], workbook["Inspection Attendees"]):
             
             equipmentJSON = bim.getEquipment(self.ticket, self.projectID, id)
             areaID = equipmentJSON["area_id"]
@@ -222,11 +225,11 @@ class Program:
                 self.window.destroy()
                 break
             
-            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, description, company, areaID, date, qaqc, inspec, path)
+            newPost = postRequest(self.ticket, self.projectID, self.checklistData, id, name, description, company, areaID, date, qaqc, inspec)
             checklistDataFormated = newPost.formatPost()
 
             data["checklists"].append(checklistDataFormated)
-            attachmentData.append([newPost.getGUID(), newPost.getPath(), equipmentJSON])
+            equipmentData.append(equipmentJSON)
             
         data["checklists"] = json.dumps(data["checklists"])
         jsonData = json.dumps(data)
@@ -238,11 +241,27 @@ class Program:
             progress["value"] += postProgressBar
             self.window.update()
             time.sleep(.75)
-            return attachmentData
+            return equipmentData
         else:
             messagebox.showerror("Error in Batch Upload", "The whole batch did not upload...")
             return None
 
+    def postSubmitValues(self, progress, progressMsg, customField, equipmentData):
+        if equipmentData == None:
+            return None
+        
+        progressMsg["text"] = "Working on Submitted Fields..."
+        self.window.update()
+        
+        for equipment in equipmentData:
+            # print(equipment)
+            bim.submittedLogic(self.ticket, self.projectID, customField, equipment)
+        
+        progressMsg["text"] = "Fields Uploaded..."
+        print("Fields Uploaded")
+        progress["value"] = 100
+        self.window.update()
+    
     def attachmentLogicAndFields(self, progress, progressMsg, postProgressBar, customField, attachmentData):
 
         if attachmentData == None:
@@ -304,9 +323,10 @@ class Program:
 
         workbook, postProgressBar = self.workbookLogicAndFields(progress, progressMsg)
 
-        attachmentGuids = self.postLogicAndFields(workbook, company, progress, progressMsg, postProgressBar)
+        equipmentData = self.postLogicAndFields(workbook, company, progress, progressMsg, postProgressBar)
 
-        self.attachmentLogicAndFields(progress, progressMsg, postProgressBar, customField, attachmentGuids)
+        self.postSubmitValues(progress, progressMsg, customField, equipmentData)
+        # self.attachmentLogicAndFields(progress, progressMsg, postProgressBar, customField, attachmentGuids)
         
         self.closeFileLogicAndFields(progress, progressMsg)
 
