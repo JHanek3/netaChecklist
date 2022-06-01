@@ -339,12 +339,14 @@ def postSubmittedValue(ticket, projectID, jResObj, id, submitStr):
 
 # TODO: UNCOMMENT MOVE PDF
 def till200(ticket, projectID, guid, data, filePath, folderPathActual, customField, equipmentJSON):
-    while True:
+    count = 0
+    while count != 3:
         checklistExistsReponse = checkIfChecklistExists(ticket, projectID, guid)
         if checklistExistsReponse.status_code == 200:
             break
         else:
             time.sleep(.25)
+            count += 1
     attachmentResponse = postAttachment(data, filePath)
     time.sleep(1)
         
@@ -361,7 +363,7 @@ def till200(ticket, projectID, guid, data, filePath, folderPathActual, customFie
                 print("Failed to updated Submitted field")
                 today = str(date.today()).split(" ")[0]
                 file = open(f"{today} Failed Imports.txt", "a")
-                file.write(f"Failed to update Submitted field: {os.path.basename(filePath)}\n")
+                file.write(f"Failed to update Submitted field: {os.path.basename(filePath)} has value '{customField[1]}'\n")
                 file.close()
     
     else:
@@ -371,7 +373,7 @@ def till200(ticket, projectID, guid, data, filePath, folderPathActual, customFie
         print("Failed to import attachment")
         today = str(date.today()).split(" ")[0]
         file = open(f"{today} Failed Imports.txt", "a")
-        file.write(f"Failed to import attachment: {os.path.basename(filePath)}\n")
+        file.write(f"Failed to import attachment (Submit value not updated): {os.path.basename(filePath)}\n")
         file.close()
 
 def bimLogout(ticket):

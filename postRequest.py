@@ -4,7 +4,7 @@ class postRequest:
         self.ticket = ticket
         self.projectID = projectID
         self.checklist = checklist
-        self.id = id
+        self.id = id.strip()
         self.name = name
         self.description = description
         self.company = company
@@ -74,8 +74,9 @@ class postRequest:
             "company_name": self.company[1], "status": "Closed", "checklist_type": "Commissioning", 
             "priority": "Medium", "tags": "", "project_id": self.projectID, "created_by": "jhanek@cecco.com",
             "created_at": "", "updated_at": "", "description": self.description, "deleted_at": "", "area_id": self.location,
-            "source_id": self.id, "soure_type": "Equipment", "uploaded_at": "", "checklist_items": checklistItems
+            "source_id": self.id, "source_type": "Equipment", "uploaded_at": "", "checklist_items": checklistItems
         }
+        
         return data
 
         # data = {
